@@ -1,0 +1,672 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserRole {
+  ADMIN
+  DEPARTMENT_USER
+  DEPARTMENT_MANAGER
+  PROCUREMENT_OFFICER
+  STORE_MANAGER
+  FINANCE_OFFICER
+
+  // Existing database roles - KEEP
+  STOREKEEPER
+  FINANCE_USER
+  MANAGEMENT
+}
+
+enum PurchaseRequestStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum QuotationStatus {
+  DRAFT
+  SUBMITTED
+  SELECTED
+  REJECTED
+  CANCELLED
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_RECEIVED
+  COMPLETED
+  CANCELLED
+}
+
+enum GRNStatus {
+  DRAFT
+  RECEIVED
+  CANCELLED
+}
+
+enum InventoryTransactionType {
+  RECEIPT
+  ISSUE
+  TRANSFER_IN
+  TRANSFER_OUT
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+}
+
+enum StockTransferStatus {
+  DRAFT
+  APPROVED
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
+// ============================================================
+// USER
+// ============================================================
+
+model User {
+  id       Int      @id @default(autoincrement())
+  name     String
+  email    String   @unique
+  password String
+  role     UserRole @default(DEPARTMENT_USER)
+  isActive Boolean  @default(true)
+
+  departmentId Int?
+  branchId     Int?
+  storeId      Int?
+
+  department Department? @relation(fields: [departmentId], references: [id])
+  branch     Branch?     @relation(fields: [branchId], references: [id])
+  store      Store?      @relation(fields: [storeId], references: [id])
+
+  purchaseRequests         PurchaseRequest[]         @relation("PurchaseRequestRequester")
+  purchaseRequestApprovals PurchaseRequestApproval[] @relation("PurchaseRequestApprover")
+  purchaseOrders           PurchaseOrder[]           @relation("PurchaseOrderCreator")
+  grns                     GoodsReceivedNote[]       @relation("GRNReceiver")
+  inventoryLedgerEntries   InventoryLedger[]         @relation("InventoryLedgerCreator")
+  stockTransfersCreated    StockTransfer[]           @relation("StockTransferCreator")
+  stockTransfersApproved   StockTransfer[]           @relation("StockTransferApprover")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([departmentId])
+  @@index([branchId])
+  @@index([storeId])
+  @@index([role])
+}
+
+// ============================================================
+// DEPARTMENT
+// ============================================================
+
+model Department {
+  id          Int     @id @default(autoincrement())
+  name        String
+  code        String  @unique
+  description String?
+  isActive    Boolean @default(true)
+
+  users            User[]
+  purchaseRequests PurchaseRequest[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+}
+
+// ============================================================
+// BRANCH
+// ============================================================
+
+model Branch {
+  id          Int     @id @default(autoincrement())
+  name        String
+  code        String  @unique
+  address     String?
+  description String?
+  isActive    Boolean @default(true)
+
+  users            User[]
+  stores           Store[]
+  purchaseRequests PurchaseRequest[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+}
+
+// ============================================================
+// STORE
+// ============================================================
+
+model Store {
+  id          Int     @id @default(autoincrement())
+  name        String
+  code        String  @unique
+  branchId    Int
+  address     String?
+  description String?
+  isActive    Boolean @default(true)
+
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  users            User[]
+  purchaseRequests PurchaseRequest[]
+
+  inventoryLedger InventoryLedger[]
+  stockBalances   StockBalance[]
+
+  sourceTransfers      StockTransfer[] @relation("StockTransferSource")
+  destinationTransfers StockTransfer[] @relation("StockTransferDestination")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([branchId])
+  @@index([name])
+}
+
+// ============================================================
+// ITEM CATEGORY
+// ============================================================
+
+model ItemCategory {
+  id          Int     @id @default(autoincrement())
+  name        String
+  code        String  @unique
+  description String?
+  isActive    Boolean @default(true)
+
+  items Item[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+}
+
+// ============================================================
+// ITEM
+// ============================================================
+
+model Item {
+  id          Int     @id @default(autoincrement())
+  name        String
+  code        String  @unique
+  categoryId  Int
+  description String?
+
+  // Existing database fields - KEEP
+  unit         String?
+  reorderLevel Int?
+
+  // Current application field
+  unitOfMeasure String?
+
+  isActive Boolean @default(true)
+
+  category ItemCategory @relation(fields: [categoryId], references: [id])
+
+  purchaseRequestItems PurchaseRequestItem[]
+  quotationItems       QuotationItem[]
+  purchaseOrderItems   PurchaseOrderItem[]
+  grnItems             GoodsReceivedNoteItem[]
+
+  inventoryLedger InventoryLedger[]
+  stockBalance    StockBalance[]
+  transferItems   StockTransferItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([name])
+}
+
+// ============================================================
+// VENDOR
+// ============================================================
+
+model Vendor {
+  id            Int     @id @default(autoincrement())
+  name          String
+  code          String  @unique
+  contactPerson String?
+  email         String?
+  phone         String?
+  address       String?
+  description   String?
+  isActive      Boolean @default(true)
+
+  quotations     Quotation[]
+  purchaseOrders PurchaseOrder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+}
+
+// ============================================================
+// PURCHASE REQUEST
+// ============================================================
+
+model PurchaseRequest {
+  id            Int    @id @default(autoincrement())
+  requestNumber String @unique
+
+  requestedById Int
+  requestedBy   User @relation("PurchaseRequestRequester", fields: [requestedById], references: [id])
+
+  departmentId Int
+  department   Department @relation(fields: [departmentId], references: [id])
+
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id])
+
+  storeId Int?
+  store   Store? @relation(fields: [storeId], references: [id])
+
+  purpose      String
+  requiredDate DateTime?
+  remarks      String?
+
+  status PurchaseRequestStatus @default(DRAFT)
+
+  items          PurchaseRequestItem[]
+  approvals      PurchaseRequestApproval[]
+  quotations     Quotation[]
+  purchaseOrders PurchaseOrder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([requestedById])
+  @@index([departmentId])
+  @@index([branchId])
+  @@index([storeId])
+  @@index([status])
+}
+
+// ============================================================
+// PURCHASE REQUEST ITEM
+// ============================================================
+
+model PurchaseRequestItem {
+  id Int @id @default(autoincrement())
+
+  purchaseRequestId Int
+  purchaseRequest   PurchaseRequest @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
+
+  itemId Int
+  item   Item @relation(fields: [itemId], references: [id])
+
+  requestedQuantity  Int
+  estimatedUnitPrice Decimal? @db.Decimal(12, 2)
+  remarks            String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([purchaseRequestId])
+  @@index([itemId])
+}
+
+// ============================================================
+// PURCHASE REQUEST APPROVAL
+// ============================================================
+
+model PurchaseRequestApproval {
+  id Int @id @default(autoincrement())
+
+  purchaseRequestId Int
+  purchaseRequest   PurchaseRequest @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
+
+  approverId Int
+  approver   User @relation("PurchaseRequestApprover", fields: [approverId], references: [id])
+
+  status   ApprovalStatus @default(PENDING)
+  comments String?
+  actionAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([purchaseRequestId])
+  @@index([approverId])
+  @@index([status])
+}
+
+// ============================================================
+// QUOTATION
+// ============================================================
+
+model Quotation {
+  id              Int    @id @default(autoincrement())
+  quotationNumber String @unique
+
+  purchaseRequestId Int
+  purchaseRequest   PurchaseRequest @relation(fields: [purchaseRequestId], references: [id])
+
+  vendorId Int
+  vendor   Vendor @relation(fields: [vendorId], references: [id])
+
+  quotationDate DateTime  @default(now())
+  validUntil    DateTime?
+  remarks       String?
+
+  status QuotationStatus @default(DRAFT)
+
+  items          QuotationItem[]
+  purchaseOrders PurchaseOrder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([purchaseRequestId])
+  @@index([vendorId])
+  @@index([status])
+}
+
+// ============================================================
+// QUOTATION ITEM
+// ============================================================
+
+model QuotationItem {
+  id Int @id @default(autoincrement())
+
+  quotationId Int
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  itemId Int
+  item   Item @relation(fields: [itemId], references: [id])
+
+  quantity   Int
+  unitPrice  Decimal @db.Decimal(12, 2)
+  totalPrice Decimal @db.Decimal(12, 2)
+
+  remarks String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([quotationId])
+  @@index([itemId])
+}
+
+// ============================================================
+// PURCHASE ORDER
+// ============================================================
+
+model PurchaseOrder {
+  id          Int    @id @default(autoincrement())
+  orderNumber String @unique
+
+  quotationId Int
+  quotation   Quotation @relation(fields: [quotationId], references: [id])
+
+  vendorId Int
+  vendor   Vendor @relation(fields: [vendorId], references: [id])
+
+  purchaseRequestId Int
+  purchaseRequest   PurchaseRequest @relation(fields: [purchaseRequestId], references: [id])
+
+  createdById Int
+  createdBy   User @relation("PurchaseOrderCreator", fields: [createdById], references: [id])
+
+  orderDate            DateTime  @default(now())
+  expectedDeliveryDate DateTime?
+
+  deliveryAddress String?
+  paymentTerms    String?
+  remarks         String?
+
+  status PurchaseOrderStatus @default(DRAFT)
+
+  items PurchaseOrderItem[]
+  grns  GoodsReceivedNote[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([quotationId])
+  @@index([vendorId])
+  @@index([purchaseRequestId])
+  @@index([createdById])
+  @@index([status])
+}
+
+// ============================================================
+// PURCHASE ORDER ITEM
+// ============================================================
+
+model PurchaseOrderItem {
+  id Int @id @default(autoincrement())
+
+  purchaseOrderId Int
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  itemId Int
+  item   Item @relation(fields: [itemId], references: [id])
+
+  quantity   Int
+  unitPrice  Decimal @db.Decimal(12, 2)
+  totalPrice Decimal @db.Decimal(12, 2)
+
+  receivedQuantity Int @default(0)
+
+  remarks String?
+
+  grnItems GoodsReceivedNoteItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([purchaseOrderId])
+  @@index([itemId])
+}
+
+// ============================================================
+// GOODS RECEIVED NOTE
+// ============================================================
+
+model GoodsReceivedNote {
+  id        Int    @id @default(autoincrement())
+  grnNumber String @unique
+
+  purchaseOrderId Int
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+
+  receivedDate DateTime @default(now())
+
+  receivedById Int
+  receivedBy   User @relation("GRNReceiver", fields: [receivedById], references: [id])
+
+  deliveryNoteNumber String?
+  remarks            String?
+
+  status GRNStatus @default(DRAFT)
+
+  items GoodsReceivedNoteItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([purchaseOrderId])
+  @@index([receivedById])
+  @@index([status])
+}
+
+// ============================================================
+// GOODS RECEIVED NOTE ITEM
+// ============================================================
+
+model GoodsReceivedNoteItem {
+  id Int @id @default(autoincrement())
+
+  grnId Int
+  grn   GoodsReceivedNote @relation(fields: [grnId], references: [id], onDelete: Cascade)
+
+  purchaseOrderItemId Int
+  purchaseOrderItem   PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id])
+
+  itemId Int
+  item   Item @relation(fields: [itemId], references: [id])
+
+  receivedQuantity Int
+  remarks          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([grnId])
+  @@index([purchaseOrderItemId])
+  @@index([itemId])
+}
+
+// ============================================================
+// STOCK BALANCE
+// ============================================================
+
+model StockBalance {
+  id Int @id @default(autoincrement())
+
+  itemId Int
+  item   Item @relation(fields: [itemId], references: [id])
+
+  storeId Int   @default(1)
+  store   Store @relation(fields: [storeId], references: [id])
+
+  quantity Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // One item can have separate stock in different stores
+  @@unique([itemId, storeId])
+  @@index([itemId])
+  @@index([storeId])
+  @@index([quantity])
+}
+
+// ============================================================
+// INVENTORY LEDGER
+// ============================================================
+
+model InventoryLedger {
+  id Int @id @default(autoincrement())
+
+  itemId Int
+  item   Item @relation(fields: [itemId], references: [id])
+
+  storeId Int   @default(1)
+  store   Store @relation(fields: [storeId], references: [id])
+
+  transactionType InventoryTransactionType
+
+  quantity Int
+
+  referenceType String?
+  referenceId   Int?
+
+  remarks String?
+
+  transactionDate DateTime @default(now())
+
+  createdById Int
+  createdBy   User @relation("InventoryLedgerCreator", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([itemId])
+  @@index([storeId])
+  @@index([transactionType])
+  @@index([referenceType, referenceId])
+  @@index([createdById])
+  @@index([transactionDate])
+}
+
+// ============================================================
+// STOCK TRANSFER
+// ============================================================
+
+model StockTransfer {
+  id Int @id @default(autoincrement())
+
+  transferNumber String @unique
+
+  sourceStoreId Int
+  sourceStore   Store @relation("StockTransferSource", fields: [sourceStoreId], references: [id])
+
+  destinationStoreId Int
+  destinationStore   Store @relation("StockTransferDestination", fields: [destinationStoreId], references: [id])
+
+  createdById Int
+  createdBy   User @relation("StockTransferCreator", fields: [createdById], references: [id])
+
+  approvedById Int?
+  approvedBy   User? @relation("StockTransferApprover", fields: [approvedById], references: [id])
+
+  transferDate DateTime @default(now())
+
+  remarks String?
+
+  status StockTransferStatus @default(DRAFT)
+
+  items StockTransferItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sourceStoreId])
+  @@index([destinationStoreId])
+  @@index([createdById])
+  @@index([approvedById])
+  @@index([status])
+}
+
+// ============================================================
+// STOCK TRANSFER ITEM
+// ============================================================
+
+model StockTransferItem {
+  id Int @id @default(autoincrement())
+
+  transferId Int
+  transfer   StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+
+  itemId Int
+  item   Item @relation(fields: [itemId], references: [id])
+
+  quantity Int
+  remarks  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([transferId])
+  @@index([itemId])
+}
