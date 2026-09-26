@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+<<<<<<< HEAD
   "scripts": {
+=======
+ "scripts": {
+>>>>>>> d5b7ab3c700d17bbdf2e3a26672bcc7ecdf76c22
   "start": "node server.js",
   "postinstall": "prisma generate",
   "migrate:deploy": "prisma migrate deploy",
