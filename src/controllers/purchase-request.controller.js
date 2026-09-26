@@ -240,7 +240,7 @@ const approvePurchaseRequest = async (req, res, next) => {
       await purchaseRequestService.approvePurchaseRequest(
         id,
         req.user,
-        req.body.comments
+        req.body.remarks || req.body.comments
       );
 
     return res.status(200).json({
@@ -273,7 +273,7 @@ const rejectPurchaseRequest = async (req, res, next) => {
       await purchaseRequestService.rejectPurchaseRequest(
         id,
         req.user,
-        req.body.comments
+        req.body.remarks || req.body.comments
       );
 
     return res.status(200).json({

@@ -568,9 +568,9 @@ const approvePurchaseRequest = async (id, user, comments) => {
     throw new Error("Purchase request not found");
   }
 
-  if (purchaseRequest.status !== "UNDER_REVIEW") {
+  if (purchaseRequest.status !== "UNDER_REVIEW" && purchaseRequest.status !== "SUBMITTED") {
     throw new Error(
-      "Purchase request is not under review"
+      "Purchase request is not under review or submitted"
     );
   }
 
@@ -650,9 +650,9 @@ const rejectPurchaseRequest = async (id, user, comments) => {
     throw new Error("Purchase request not found");
   }
 
-  if (purchaseRequest.status !== "UNDER_REVIEW") {
+  if (purchaseRequest.status !== "UNDER_REVIEW" && purchaseRequest.status !== "SUBMITTED") {
     throw new Error(
-      "Purchase request is not under review"
+      "Purchase request is not under review or submitted"
     );
   }
 

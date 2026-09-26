@@ -92,7 +92,7 @@ router.post(
 // APPROVE
 // =====================================================
 
-router.post(
+router.patch(
   "/:id/approve",
   authenticate,
   authorize("ADMIN", "DEPARTMENT_MANAGER"),
@@ -104,7 +104,7 @@ router.post(
 // REJECT
 // =====================================================
 
-router.post(
+router.patch(
   "/:id/reject",
   authenticate,
   authorize("ADMIN", "DEPARTMENT_MANAGER"),
